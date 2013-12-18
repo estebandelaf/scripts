@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #
-# Domains check
+# servidores.sh
 # Copyright (C) 2013 Esteban De La Fuente Rubio (esteban[at]delaf.cl)
 #
 # Este programa es software libre: usted puede redistribuirlo y/o modificarlo
