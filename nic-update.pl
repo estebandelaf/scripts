@@ -260,11 +260,11 @@ sub nic_get_auth_code {
 	# establecer conexión con el servidor de correo
 	my $server = new Net::IMAP::Simple(
 		$email->{host}.':'.$email->{port},
-		use_ssl => ($email->{port} eq 993 ? 1 : 0),
-		debug => 0
+		use_ssl => ($email->{port} eq 993 ? 1 : 0)
 	);
 	$server->login($email->{user}, $email->{pass});
 	# buscar correo con el código
+	from_to ($dominio, 'utf-8', 'iso-8859-1');
 	my $filter = '';
 	$filter .= 'FROM "hostmaster@nic.cl" ';
 	$filter .= 'SUBJECT "Codigo de autorizacion para '.$dominio.'.cl"';
@@ -319,7 +319,7 @@ sub nic_update {
 	from_to ($dominio, 'utf-8', 'iso-8859-1');
 	my $ua = LWP::UserAgent->new;
 	my $r = $ua->request (
-		POST 'https://www.nic.cl/cgi-bin/dame-codigo',
+		POST 'https://www.nic.cl/cgi-bin/ingresa-solicitud',
 		Content_Type => 'form-data',
 		Content => [
 			dominio => $dominio,
@@ -340,8 +340,8 @@ sub nic_update {
 		foreach $nameserver (@$nameservers) {
 			$nameserver = trim ($nameserver);
 			my $ip = nslookup $nameserver;
-			print "\t",'Agregando DNS ',$nameserver,' con IP',
-									$i,"\n";
+			print "\t",'Agregando DNS ',$nameserver,' con IP ',
+								$ip,"\n";
 			$forms[1]->value('ns'.$i, $nameserver);
 			$forms[1]->value('ipns'.$i, $ip);
 			$i = $i + 1;
