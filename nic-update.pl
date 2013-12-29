@@ -21,8 +21,9 @@
 #
 # Script para actualizar la dirección IP de los servidores de nombre en NIC.cl
 #
-# Se debe instalar:
-#   cpan install Net::IMAP::Simple DateTime::Format::Strptime Net::Nslookup
+# Se deben instalar los módulos de Perl usando:
+#   cpan YAML Modern::Perl Net::IMAP::Simple DateTime::Format::Strptime \
+#     Net::Nslookup
 #
 # Formato archivos de configuración:
 #
