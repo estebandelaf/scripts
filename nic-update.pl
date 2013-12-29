@@ -45,20 +45,22 @@
 #
 #   - domains.conf: un dominio por línea, sin .cl
 #
-# WARNING: pruebas han mostrado que script solo funciona utilizando un solo
-# servidor de nombres en nameservers.conf (lo que asigna automáticamente a
-# NIC.cl como secundario). Se debe corregir este problema para que si se pasa
-# más de un servidor de nombres NIC.cl no se use como secundario y se usen los
-# DNS que se pasan.
+# TODO:
+#   - Chequear que el código enviado fuera correcto y se pueda modificar
+#   - Mejorar cabeceras de formularios envíados (por ej Referer y UserAgent)
+#   - Si no se puede establecer conexión con el servidor IMAP abortar script
+#   - Chequear que los DNS que se quieran utilizar sean válidos (existan)
 #
 
 # módulos del sistema que se utilizarán
 use Modern::Perl;
 use LWP::UserAgent;
+use HTTP::Request::Common;
 use HTML::Form;
 use Net::IMAP::Simple;
 use DateTime::Format::Strptime;
 use Net::Nslookup;
+use Encode qw(from_to);
 
 # serán válidos correos que llegaron hace X horas
 use constant EMAIL_RECEIVED_HOUR_AGO => 6;
@@ -79,13 +81,14 @@ if ($#ARGV+1 == 3) {
 	$domains_file = $ARGV[2];
 } else {
 	print 'Modo de uso:',"\n";
-	print "\t",$0,' <email file> <nameservers file> <domains file>',"\n";
+	print "\t",$0,' <email file> <nameservers file | nameserver> ',
+		'<domains file | domain>',"\n";
 	exit 1;
 }
 
 # cargar archivos con las configuraciones de dns y dominios
-my @nameservers = file_load ($nameservers_file);
-my @domains = file_load ($domains_file);
+my @nameservers = nameservers_load ($nameservers_file);
+my @domains = domains_load ($domains_file);
 
 # defininir configuración del correo
 my @config = file_load ($email_file);
@@ -120,9 +123,13 @@ foreach $domain (@domains) {
 		next;
 	}
 	print "\t",'Código de autorización: ',$code,"\n";
-	while (&nic_update($domain, @nameservers, $code, $session_id, $stamp)){}
+	while ( &nic_update( $domain, \@nameservers, $code, $session_id,
+								$stamp ) ) {}
 }
 
+# Rutina para quitar espacios y saltos de línea al inicio y fin de un string
+# @param string String que se desea limpiar
+# @return String limpiado
 sub trim {
 	my $string = shift;
 	chomp ($string);
@@ -131,6 +138,10 @@ sub trim {
 	return $string;
 }
 
+# Rutina para cargar las líneas de un arcivo en un arreglo, se omiten líneas
+# vacías o que inician por un # (esto es para comentarios)
+# @param file Ruta del archivo que se desea cargar
+# @return Arreglo con las líneas del archivo
 sub file_load {
 	# verificar que archivo exista
 	my $file = shift;
@@ -146,6 +157,30 @@ sub file_load {
 	return @lines;
 }
 
+# Rutina que carga los DNS desde un archivo, si el archivo no existe se asume
+# que el nombre del archivo es el DNS que se quiere utilizar
+# @param file Nombre del archivo con los dns
+# @return Arreglo con los DNS
+sub nameservers_load {
+	my $file = shift;
+	if (-e $file) {
+		return file_load ($file);
+	} else {
+		my @aux = ($file);
+		return @aux;
+	}
+}
+
+# Rutina que carga los dominios desde un archivo, si el archivo no existe se
+# asume que el nombre del archivo es el dominio que se quiere configurar
+# @param file Nombre del archivo con los dominios
+# @return Arreglo con los dominios
+sub domains_load {
+	return nameservers_load (shift);
+}
+
+# Rutina que solicita el identificador de la sesión
+# @return Identificador de la sesión o vacío en caso de error
 sub nic_request_session_id {
 	my $ua = LWP::UserAgent->new;
 	my $r = $ua->get('https://www.nic.cl/cgi-bin/ingresa-solicitud');
@@ -156,19 +191,27 @@ sub nic_request_session_id {
 	return '';
 }
 
+# Rutina para solicitar el stamp para el proceso
+# @param dominio Dominio para el que se solicitará el stamp (sin .cl)
+# @param session_id Identificador de la sesión
+# @return Stamp o vacío en caso de error
 sub nic_request_stamp {
 	my $dominio = shift;
 	my $session_id = shift;
 	return '' if $session_id eq '';
-	my $data = {
-		dominio => $dominio,
-		sessionid => $session_id,
-		opcode => 'M',
-		pantalla => 1,
-		i => 'E'
-	};
+	from_to ($dominio, 'utf-8', 'iso-8859-1');
 	my $ua = LWP::UserAgent->new;
-	my $r = $ua->post('https://www.nic.cl/cgi-bin/ingresa-solicitud',$data);
+	my $r = $ua->request (
+		POST 'https://www.nic.cl/cgi-bin/ingresa-solicitud',
+		Content_Type => 'form-data',
+		Content => [
+			dominio => $dominio,
+			sessionid => $session_id,
+			opcode => 'M',
+			pantalla => 1,
+			i => 'E'
+		]
+	);
 	if ($r->is_success) {
 		my @forms = HTML::Form->parse ($r);
 		return $forms[1]->find_input('stamp')->value;
@@ -176,23 +219,36 @@ sub nic_request_stamp {
 	return '';
 }
 
+# Rutina para solicitar el códdigo de autorización a NIC.cl
+# @param dominio Dominio para el que se solicitará el código (sin .cl)
+# @param stamp Marca utilizada para el proceso
+# @return 0 en caso de éxito, 1 en caso de error
 sub nic_request_auth_code {
 	my $dominio = shift;
 	my $stamp = shift;
 	return 1 if $stamp eq '';
-	my $data = {
-		dominio => $dominio,
-		stamp => $stamp,
-		opcode => 'M'
-	};
+	from_to ($dominio, 'utf-8', 'iso-8859-1');
 	my $ua = LWP::UserAgent->new;
-	my $r = $ua->post ('https://www.nic.cl/cgi-bin/dame-codigo', $data);
+	my $r = $ua->request (
+		POST 'https://www.nic.cl/cgi-bin/dame-codigo',
+		Content_Type => 'form-data',
+		Content => [
+			dominio => $dominio,
+			stamp => $stamp,
+			opcode => 'M'
+		]
+	);
 	if ($r->is_success) {
 		return 0;
 	}
 	return 1;
 }
 
+# Rutina para obtener el código de autorización desde el correo electrónico
+# @param email Hash con la configuración del correo electrónico
+# @param dominio Dominio para el que se desea buscar el código (sin .cl)
+# @param secs Timestamp (epoch) desde cuando el correo será válido
+# @return Código de autorización o vació en caso de error
 sub nic_get_auth_code {
 	# parámetros pasados
 	my $email = shift;
@@ -208,23 +264,31 @@ sub nic_get_auth_code {
 	);
 	$server->login($email->{user}, $email->{pass});
 	# buscar correo con el código
-	my @ids = $server->search (
-		'FROM "hostmaster@nic.cl" SUBJECT "Codigo de autorizacion para '.$dominio.'.cl"'
-	);
+	my $filter = '';
+	$filter .= 'FROM "hostmaster@nic.cl" ';
+	$filter .= 'SUBJECT "Codigo de autorizacion para '.$dominio.'.cl"';
+	my @ids = $server->search ($filter);
 	# si no se encontró un correo retornar vacío
 	return '' if $#ids+1==0;
-	# obtener líneas del correo
-	my @lines = $server->get ($ids[0]);
-	# procesar correo buscando uno que se haya recibido de forma posterior a
-	# secs (segundos desde cuando se debe considerar el correo)
-	@aux = grep { $_ =~ /^Date: / } @lines;
-	my $date = substr ($aux[0], 6);
+	# procesar correos buscando uno que se haya recibido de forma posterior
+	# a secs (segundos desde cuando se debe considerar el correo)
 	my $parser = DateTime::Format::Strptime->new(
 		pattern => '%a, %d %b %Y %H:%M:%S %z',
 		on_error => 'croak',
 	);
-	my $dt = $parser->parse_datetime ($date);
-	return '' if $dt->epoch() < $secs;
+	my @lines;
+	my $id;
+	my $found = 0;
+	foreach $id (@ids) {
+		@lines = $server->get ($id);
+		@aux = grep { $_ =~ /^Date: / } @lines;
+		my $date = substr ($aux[0], 6);
+		my $email_dt = $parser->parse_datetime ($date);
+		if ($email_dt->epoch() >= $secs) {
+			$found = 1;
+		}
+	}
+	return '' if not $found;
 	# obtener código
 	@aux = grep { $_ =~ /^  / } @lines;
 	my $codigo = trim($aux[-2]);
@@ -234,45 +298,66 @@ sub nic_get_auth_code {
 	return $codigo;
 }
 
+# Rutina que se conecta a NIC.cl para hacer la actualización de los DNS del
+# dominio
+# @param dominio Dominio que se desea actualizar (sin .cl)
+# @param nameservers Referencia a arreglo con el listado de DNS
+# @param code Código de autorización para modificar el dominio
+# @param session_id Identificador de la sesión
+# @param stamp Marca utilizada para el proceso
+# @return 0 en caso de éxito, 1 en caso de error
 sub nic_update {
 	# parámetros pasados a la función
-	my $domain = shift;
-	my @nameservers = shift;
+	my $dominio = shift;
+	my ($nameservers) = shift;
 	my $code = shift;
 	my $session_id = shift;
 	my $stamp = shift;
-	# actualizar
-	print "\t",'Actualizando DNS',"\n";
-	my $data = {
-		dominio => $domain,
-		sessionid => $session_id,
-		stamp => $stamp,
-		auth_code => $code,
-		opcode => 'M',
-		pantalla => 1,
-		i => 'E',
-		Continuar => 'Continuar'
-	};
+	# enviar código de autorización
+	print "\t",'Enviando código de autorización',"\n";
+	from_to ($dominio, 'utf-8', 'iso-8859-1');
 	my $ua = LWP::UserAgent->new;
-	my $r = $ua->post('https://www.nic.cl/cgi-bin/ingresa-solicitud',$data);
+	my $r = $ua->request (
+		POST 'https://www.nic.cl/cgi-bin/dame-codigo',
+		Content_Type => 'form-data',
+		Content => [
+			dominio => $dominio,
+			sessionid => $session_id,
+			stamp => $stamp,
+			auth_code => $code,
+			opcode => 'M',
+			pantalla => 1,
+			i => 'E',
+			Continuar => 'Continuar'
+		]
+	);
 	if ($r->is_success) {
 		my @forms = HTML::Form->parse ($r);
 		# actualizar DNSs
 		my $i = 1;
 		my $nameserver;
-		foreach $nameserver (@nameservers) {
+		foreach $nameserver (@$nameservers) {
 			$nameserver = trim ($nameserver);
 			my $ip = nslookup $nameserver;
+			print "\t",'Agregando DNS ',$nameserver,' con IP',
+									$i,"\n";
 			$forms[1]->value('ns'.$i, $nameserver);
 			$forms[1]->value('ipns'.$i, $ip);
 			$i = $i + 1;
+			last if $i==8; # máx 8 DNS permite NIC.cl
 		}
 		# si solo se configuró un primario se deja a NIC.cl como DNS
 		# secundario
 		if ($i==2) {
+			print "\t",'Configurando NIC.cl como secundario',"\n";
 			$forms[1]->find_input('nic-secundario')->value(1);
 		} else {
 			$forms[1]->find_input('nic-secundario')->value(0);
+		}
+		# limpiar los campos de DNSs que no se escribieron
+		for (my $j=$i; $j<=8; $j++) {
+			$forms[1]->value('ns'.$j, '');
+			$forms[1]->value('ipns'.$j, '');
 		}
 		# enviar formulario con los cambios
 		$r = $ua->request($forms[1]->click);
