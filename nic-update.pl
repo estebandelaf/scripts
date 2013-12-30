@@ -284,8 +284,9 @@ sub nic_get_auth_code {
 	$server->login($email->{user}, $email->{pass});
 	# buscar correo con el código
 	my $dt = DateTime->from_epoch(epoch => $secs);
-	my $filter = 'SINCE '.$dt->day().'-'.$dt->month_abbr().'-'.$dt->year();
-	$filter .= ' FROM "hostmaster@nic.cl"';
+	my $filter;
+#	$filter .= 'SINCE '.$dt->day().'-'.$dt->month_abbr().'-'.$dt->year();
+	$filter .= 'FROM "hostmaster@nic.cl"';
 	$filter .= ' SUBJECT "Codigo de autorizacion para"';
 	my @ids = $server->search ($filter);
 	# si no se encontró un correo retornar vacío
