@@ -48,7 +48,6 @@
 #
 # TODO:
 #   - Chequear que el código enviado fuera correcto y se pueda modificar
-#   - Mejorar cabeceras de formularios envíados (por ej Referer y UserAgent)
 #   - Si no se puede establecer conexión con el servidor IMAP abortar script
 #   - Chequear que los DNS que se quieran utilizar sean válidos (existan)
 #
@@ -137,6 +136,28 @@ sub trim {
 	$string =~ s/^\s+//;
 	$string =~ s/\s+$//;
 	return $string;
+}
+
+# Rutina que convierte un string según RFC2822 los posibles caracteres de un
+# nombre de dominio (http://en.wikipedia.org/wiki/MIME#Encoded-Word)
+# Tabla de equivalencias: http://www.degraeve.com/reference/urlencoding.php
+# @param string String que se desea codificar
+# @return String codificado
+sub encode_mimeword {
+	my $string = shift;
+	if ($string =~ m/[áéíóúñü]/) {
+		$string =~ s/á/=E1/g;
+		$string =~ s/é/=E9/g;
+		$string =~ s/í/=ED/g;
+		$string =~ s/ó/=F3/g;
+		$string =~ s/ú/=FA/g;
+		$string =~ s/ñ/=F1/g;
+		$string =~ s/ü/=FC/g;
+		$string =~ s/\./=2E/g;
+		return '=?ISO-8859-1?Q?'.$string.'?=';
+	} else {
+		return $string;
+	}
 }
 
 # Rutina para cargar las líneas de un arcivo en un arreglo, se omiten líneas
@@ -255,19 +276,17 @@ sub nic_get_auth_code {
 	my $email = shift;
 	my $dominio = shift;
 	my $secs = shift;
-	# variable auxiliar para filtrados
-	my @aux;
 	# establecer conexión con el servidor de correo
-	my $server = new Net::IMAP::Simple(
+	my $server = new Net::IMAP::Simple (
 		$email->{host}.':'.$email->{port},
 		use_ssl => ($email->{port} eq 993 ? 1 : 0)
 	);
 	$server->login($email->{user}, $email->{pass});
 	# buscar correo con el código
-	from_to ($dominio, 'utf-8', 'iso-8859-1');
-	my $filter = '';
-	$filter .= 'FROM "hostmaster@nic.cl" ';
-	$filter .= 'SUBJECT "Codigo de autorizacion para '.$dominio.'.cl"';
+	my $dt = DateTime->from_epoch(epoch => $secs);
+	my $filter = 'SINCE '.$dt->day().'-'.$dt->month_abbr().'-'.$dt->year();
+	$filter .= ' FROM "hostmaster@nic.cl"';
+	$filter .= ' SUBJECT "Codigo de autorizacion para"';
 	my @ids = $server->search ($filter);
 	# si no se encontró un correo retornar vacío
 	return '' if $#ids+1==0;
@@ -279,14 +298,21 @@ sub nic_get_auth_code {
 	);
 	my @lines;
 	my $id;
+	my @aux;
 	my $found = 0;
 	foreach $id (@ids) {
 		@lines = $server->get ($id);
-		@aux = grep { $_ =~ /^Date: / } @lines;
-		my $date = substr ($aux[0], 6);
-		my $email_dt = $parser->parse_datetime ($date);
-		if ($email_dt->epoch() >= $secs) {
-			$found = 1;
+		@aux = grep { $_ =~ /^Subject: / } @lines;
+		my $subject_domain = substr ($aux[0], 9+28,-2);
+		my $searched_domain = encode_mimeword ($dominio.'.cl');
+		if ($subject_domain eq $searched_domain) {
+			@aux = grep { $_ =~ /^Date: / } @lines;
+			my $date = substr ($aux[0], 6);
+			my $email_dt = $parser->parse_datetime ($date);
+			if ($email_dt->epoch() >= $secs) {
+				$found = 1;
+				last;
+			}
 		}
 	}
 	return '' if not $found;
