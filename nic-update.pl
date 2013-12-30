@@ -46,7 +46,7 @@
 #
 #   - domains.conf: un dominio por línea, sin .cl
 #
-# TODO:
+# TODO (mejoras en chequeos):
 #   - Chequear que el código enviado fuera correcto y se pueda modificar
 #   - Si no se puede establecer conexión con el servidor IMAP abortar script
 #   - Chequear que los DNS que se quieran utilizar sean válidos (existan)
