@@ -27,20 +27,18 @@
 #
 # Formato archivos de configuración:
 #
-#   - email.conf: son 5 líneas, donde en cada una va:
+#   - email.conf: son 4 líneas, donde en cada una va:
 #
 #       usuario del correo electrónico (incluyendo dominio)
 #       contraseña del usuario del correo electrónico
 #       servidor imap
 #       puerto del servidor imap
-#       carpeta dentro del servidor imap
 #
 #     Ejemplo para servidor IMAP Gmail:
 #       nic@sasco.cl
 #       XXXXXX
 #       imap.gmail.com
 #       993
-#       INBOX
 #
 #   - nameservers.conf: un nombre de dns por línea (hostname, no la IP)
 #
@@ -96,8 +94,7 @@ my $email = {
 	user => $config[0],
 	pass => $config[1],
 	host => $config[2],
-	port => $config[3],
-	mbox => $config[4]
+	port => $config[3]
 };
 
 # procesar cada uno de los dominios
