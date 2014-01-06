@@ -74,12 +74,16 @@ LOG="$DIR_LOG/domains-check_`date +"%Y%m%d"`"
 for DOMAIN in `ls $1`; do
 	TIME=`date +"%Y-%m-%d %H:%M:%S"`
 	IP_NEW=`dig +short $DOMAIN | tail -1`
+	if [ $? -ne 0 ]; then
+		echo "$TIME: dig $DOMAIN falló! omitiendo" >> $LOG
+		continue
+	fi
+	echo "$TIME: $DOMAIN tiene la IP $IP_NEW" >> $LOG
 	if [ -f $DIR_IPS/$DOMAIN ]; then
 		IP_OLD=`cat $DIR_IPS/$DOMAIN`
 	else
 		IP_OLD="sin ip"
 	fi
-	echo "$TIME: $DOMAIN tiene la IP $IP_NEW" >> $LOG
 	# ejecutar cada uno de los comandos asociados al dominio en caso que
 	# la ip haya cambiado
 	if [ "$IP_OLD" != "$IP_NEW" ]; then
