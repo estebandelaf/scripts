@@ -67,10 +67,24 @@
 #	mipagina	.git
 # )
 #
+# Adicionalmente en el archivo de configuración se podrá utilizar la variable
+# $LOCAL para determinar si está (=yes) o no (=no) en su red LAN. Esto será
+# útil para poder utilizar más de un HOST para un mismo servidor. Ejemplo:
+#
+# if [ $LOCAL = "yes" ]; then
+#	HOST=172.16.1.2
+# else
+#	HOST=ssh.example.com
+# fi
+#
 
 # directorio donde se encuentran los directorios de cada servidor y su
 # configuración
 DIR="/home/delaf/servidores"
+
+# segmento de red de la red LAN (donde los principales servidores se
+# encuentran) y el usuario que desea sincronizar se conecta
+LAN="172.16.1"
 
 # programa rsync y los parámetros con los que se ejecutará
 RSYNC="rsync -vv --human-readable --archive --copy-links --compress --delete"
@@ -93,6 +107,15 @@ cd $DIR
 
 # limpiar la pantalla
 clear
+
+# determinar si estoy dentro de la red LAN
+LOCAL="no"
+NETWORKS=`/sbin/ifconfig | grep "inet addr" | grep -v "127.0.0"  | awk '{print $2}' | awk -F ':' '{print $2}' | awk -F '.' '{print $1"."$2"."$3}'`
+for NETWORK in $NETWORKS; do
+	if [ $NETWORK = $LAN ]; then
+		LOCAL="yes"
+	fi
+done
 
 # procesar cada uno de los directorios
 for SERVIDOR in `ls $DIR`; do
