@@ -150,6 +150,8 @@ for SERVIDOR in `ls $DIR`; do
 				DIR_LOCAL=${DIRS[$i+1]}
 				DIR_REMOTE=${DIRS[$i+2]}
 				i=`expr $i + 3`
+				# guardar identificador de la sincronización del directorio
+				echo `date +"%Y%m%d%H%M%S"` > $DIR/$SERVIDOR/$DIR_LOCAL/.lastsync
 				# generar string con los posibles exclude
 				EXCLUDE=`crearExclude $DIR_LOCAL`
 				# enviar actualizaciones
