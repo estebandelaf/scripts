@@ -110,7 +110,7 @@ clear
 
 # determinar si estoy dentro de la red LAN
 LOCAL="no"
-NETWORKS=`/sbin/ifconfig | grep "inet addr" | grep -v "127.0.0"  | awk '{print $2}' | awk -F ':' '{print $2}' | awk -F '.' '{print $1"."$2"."$3}'`
+NETWORKS=`ip addr show | grep inet | grep -v inet6 | grep -v "127.0.0" | awk '{print $2}' | awk -F '.' '{print $1"."$2"."$3}'`
 for NETWORK in $NETWORKS; do
 	if [ $NETWORK = $LAN ]; then
 		LOCAL="yes"
