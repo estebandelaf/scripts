@@ -46,7 +46,7 @@
 #   AUTO    : string "yes" o "no" que indica si se debe sincronizar
 #             automáticamente el servidor. Si es "no" solo se podrá hacer la
 #             sincronización de forma explícita (default: "yes")
-#   HOST    : string con el dominio o IP del servidor (default: "") 
+#   HOST    : string con el dominio o IP del servidor (default: "")
 #   PORT    : entero con el número de puerto del servidor (default: 22)
 #   DIRS    : mapeo entre directorios locales y remotos (incluyendo usuario)
 #   EXCLUDE : arreglo con el directorio local y los archivos que se deben
@@ -155,10 +155,13 @@ for SERVIDOR in `ls $DIR`; do
 				# generar string con los posibles exclude
 				EXCLUDE=`crearExclude $DIR_LOCAL`
 				# enviar actualizaciones
+				echo -e "\nSincronizando $SERVIDOR: $DIR_LOCAL\n"
 				$RSYNC --rsh="ssh -p$PORT" $EXCLUDE \
 					$DIR/$SERVIDOR/$DIR_LOCAL/ \
 					$USUARIO@$HOST:$DIR_REMOTE | \
-					grep -v "is uptodate"
+					grep -v "is uptodate" | \
+					grep -v "because of pattern"
+				echo -e "\n================================================================================"
 			done
 		fi
 	fi
