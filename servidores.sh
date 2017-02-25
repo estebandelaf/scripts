@@ -158,9 +158,9 @@ for SERVIDOR in `ls $DIR`; do
 				echo -e "\nSincronizando $SERVIDOR: $DIR_LOCAL\n"
 				$RSYNC --rsh="ssh -p$PORT" $EXCLUDE \
 					$DIR/$SERVIDOR/$DIR_LOCAL/ \
-					$USUARIO@$HOST:$DIR_REMOTE | \
-					grep -v "is uptodate" | \
-					grep -v "because of pattern"
+					$USUARIO@$HOST:$DIR_REMOTE \
+					| grep -v "is uptodate" \
+					| grep -v "because of pattern"
 				echo -e "\n================================================================================"
 			done
 		fi
