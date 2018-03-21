@@ -307,6 +307,7 @@ ICONS=(
     telegram                telegram                                    fab
     dropbox                 dropbox                                     fab
     wordpress               wordpress                                   fab
+    rebel                   rebel                                       fab
 )
 
 # opciones por defecto
