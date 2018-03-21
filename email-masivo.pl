@@ -59,8 +59,8 @@ use Net::SMTP;
 
 # verificar que se hayan pasado parametros
 if ($#ARGV<1) {
-	print "\n[error] modo de uso: email-masivo.pl plantilla_dir emails.txt [de]\n\n";
-	exit;
+    print "\n[error] modo de uso: email-masivo.pl plantilla_dir emails.txt [de]\n\n";
+    exit;
 }
 my $plantilla_dir = $ARGV[0]; # directorio con la plantilla de los correos a enviar
 my $emails_txt = $ARGV[1]; # archivo TXT con los correos
